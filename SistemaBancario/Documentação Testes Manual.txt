@@ -1,0 +1,10 @@
+Sistema Iniciado 
+
+Selecionei a opção 1, para consultar por cliente, e consultei pelo cliente com ID 1, e me retornou o cliente Gustavo
+Selecionei a opção 1 novamente, e consultei pelo cliente com ID 3, e me retornou que o Cliente não existe
+Selecionei a opção 2, para consultar por uma conta, e consultei pela conta com ID 1, e me retornou a conta, com saldo 0
+Selecionei a opção 2 novamente, e consultei pela conta com ID 3, e me retornou que a conta não existe.
+Selecionei a opção 4 para desativar um cliente, e desativei o cliente com ID 1
+Selecionei a opção 1 novamente, com ID 1, e me retornou o Gustavo novamente, porém agora, desativado
+Selecionei a opção 3 para Ativar um Cliente, e reative o ID 1
+Selecionei a opção 1 novamente, com ID 1, e me retornou o Gustavo novamente, porém agora ativo novamente
