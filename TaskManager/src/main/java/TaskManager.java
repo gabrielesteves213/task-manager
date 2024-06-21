@@ -16,11 +16,13 @@ import org.jfree.data.general.DefaultPieDataset;
 import java.awt.*;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 public class TaskManager extends JFrame {
 
@@ -31,15 +33,6 @@ public class TaskManager extends JFrame {
     private JTextField filtroTextField;
     private DefaultTableModel model;
     private JTable table;
-
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                new TaskManager().setVisible(true);
-            }
-        });
-    }
 
     public TaskManager() {
         setTitle("Gerenciador de Tarefas");
@@ -108,26 +101,35 @@ public class TaskManager extends JFrame {
 
     private void terminateProcessListener() {
         var selectedRow = table.getSelectedRows();
+        
+        var terminates = new ArrayList<Integer>();
+        
         if (Objects.nonNull(selectedRow) && selectedRow.length > 0) {
             for (var row : selectedRow) {
                 if (row != -1) {
                     var modelRow = table.convertRowIndexToModel(row);
                     var pid =  model.getValueAt(modelRow, 0).toString();
-                    terminateProcessByPid(pid);
+                    terminateProcessByPid(pid, terminates::add);
                 }
             }
-           // listProcesses();
         } else {
             String pidString = JOptionPane.showInputDialog("Enter PID to terminate:");
-            terminateProcessByPid(pidString);
+            terminateProcessByPid(pidString, terminates::add);
         }
+        
+        if (terminates.contains(0)) {
+            JOptionPane.showMessageDialog(null, "Process terminated successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
+        }
+        
+        listProcesses(); // Atualiza a lista de processos após a terminação
 	}
 
-    private void terminateProcessByPid(String pidString) {
+    private void terminateProcessByPid(String pidString, Consumer<Integer> consumeExitCode) {
         if (pidString != null && !pidString.isEmpty()) {
             try {
                 int pid = Integer.parseInt(pidString);
-                terminateProcess(pid);
+                int exitCode = terminateProcess(pid);
+                consumeExitCode.accept(exitCode);
             } catch (NumberFormatException ex) {
                 JOptionPane.showMessageDialog(null, "Invalid PID", "Error", JOptionPane.ERROR_MESSAGE);
             }
@@ -188,7 +190,7 @@ public class TaskManager extends JFrame {
     }
 
     @SuppressWarnings("deprecation")
-	private void terminateProcess(int pid) {
+	private int terminateProcess(int pid) {
         String osName = System.getProperty("os.name").toLowerCase();
         String command = "";
 
@@ -202,10 +204,7 @@ public class TaskManager extends JFrame {
             Process process = Runtime.getRuntime().exec(command);
             int exitCode = process.waitFor(); // Aguarda a execução do processo terminar
 
-            if (exitCode == 0) {
-                JOptionPane.showMessageDialog(null, "Process terminated successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
-                listProcesses(); // Atualiza a lista de processos após a terminação
-            } else {
+            if (exitCode != 0) {
                 BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
                 StringBuilder errorMsg = new StringBuilder();
                 String line;
@@ -214,9 +213,11 @@ public class TaskManager extends JFrame {
                 }
                 JOptionPane.showMessageDialog(null, "Failed to terminate process: " + errorMsg.toString(), "Error", JOptionPane.ERROR_MESSAGE);
             }
+            return exitCode;
         } catch (Exception ex) {
             ex.printStackTrace();
             JOptionPane.showMessageDialog(null, "Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            return 1; 	
         }
     }
 
