@@ -36,20 +36,20 @@ public class TaskManager extends JFrame {
     private Map<Integer, OSProcess> initialProcesses = new HashMap<>();
 
     public TaskManager() {
-        setTitle("Task Manager");
+        setTitle("Gerenciador de Tarefas");
         setSize(800, 600);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
 
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT)); // Usando FlowLayout para o painel superior
-        filtroLabel = new JLabel("PID/Name");
+        filtroLabel = new JLabel("PID/Nome");
         filtroTextField = new JTextField(50);
         topPanel.add(filtroLabel); // Adicionando o campo de texto ao painel superior
         topPanel.add(filtroTextField); // Adicionando o campo de texto ao painel superior
         add(topPanel, BorderLayout.NORTH); // Adicionando o painel superior ao BorderLayout.NORTH
 
-        model = new DefaultTableModel(new Object[]{"PID", "Name", "Path", "CPU (%)", "Memory (MB)", "CPU Diff (%)", "Memory Diff (MB)", "Foreground"}, 0);
+        model = new DefaultTableModel(new Object[]{"PID", "Nome", "Caminho", "CPU (%)", "Memoria (MB)", "CPU Diff (%)", "Memoria Diff (MB)", "Primeiro Plano"}, 0);
         JTable table = new JTable(model);
         JScrollPane scrollPane = new JScrollPane(table);
         TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(model);
@@ -57,10 +57,10 @@ public class TaskManager extends JFrame {
         add(scrollPane, BorderLayout.CENTER);
         
         JPanel controlPanel = new JPanel();
-        JButton listButton = new JButton("List Processes");
-        JButton cpuMemButton = new JButton("Display CPU and Memory Usage");
-        JButton terminateButton = new JButton("Terminate Process");
-        JButton cpuChartButton = new JButton("Display CPU Usage Chart");
+        JButton listButton = new JButton("Atualizar");
+        JButton cpuMemButton = new JButton("Mostrar uso de CPU e Memoria");
+        JButton terminateButton = new JButton("Encerrar Processo");
+        JButton cpuChartButton = new JButton("Exibir gráfico de uso da CPU");
         
         controlPanel.add(listButton);
         controlPanel.add(cpuMemButton);
@@ -99,6 +99,16 @@ public class TaskManager extends JFrame {
                 }
             }
         });
+        
+     // Listener de clique na tabela para encerrar o processo
+        table.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                int row = table.rowAtPoint(evt.getPoint());
+                int pid = (int) table.getValueAt(row, 0); // Obtém o PID da linha clicada
+                terminateProcess(pid);
+            }
+        });
     }
     
     private void terminateProcess() {
@@ -127,7 +137,7 @@ public class TaskManager extends JFrame {
 
         // Cria o gráfico de pizza
         JFreeChart chart = ChartFactory.createPieChart(
-                "CPU Usage",
+                "Uso da CPU",
                 dataset,
                 true,
                 true,
@@ -139,7 +149,7 @@ public class TaskManager extends JFrame {
         chartPanel.setPreferredSize(new Dimension(600, 400));
 
         // Exibe o gráfico em uma modal
-        JFrame chartFrame = new JFrame("CPU Usage Chart");
+        JFrame chartFrame = new JFrame("CPU");
         chartFrame.getContentPane().add(chartPanel, BorderLayout.CENTER);
         chartFrame.setSize(800, 600);
         chartFrame.setLocationRelativeTo(this); // Centraliza a modal em relação à janela principal
@@ -159,7 +169,7 @@ public class TaskManager extends JFrame {
                     String.format("%.2f", 100d * process.getProcessCpuLoadCumulative()),
                     String.format("%.2f", process.getResidentSetSize() / (1024.0 * 1024.0)),
                     "-", "-",  // Espaço reservado para diferença de CPU e memória
-                    process.getProcessID() == foregroundPid ? "Yes" : "No"
+                    process.getProcessID() == foregroundPid ? "Sim" : "Não"
             });
         }
     }
