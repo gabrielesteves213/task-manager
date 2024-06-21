@@ -30,7 +30,6 @@ public class TaskManager extends JFrame {
     private JLabel filtroLabel;
     private JTextField filtroTextField;
     private DefaultTableModel model;
-    private Map<Integer, OSProcess> initialProcesses = new HashMap<>();
     private JTable table;
 
     public static void main(String[] args) {
@@ -56,7 +55,7 @@ public class TaskManager extends JFrame {
         topPanel.add(filtroTextField); // Adicionando o campo de texto ao painel superior
         add(topPanel, BorderLayout.NORTH); // Adicionando o painel superior ao BorderLayout.NORTH
 
-        model = new DefaultTableModel(new Object[]{"PID", "Nome", "Caminho", "CPU (%)", "Memoria (MB)", "CPU Diff (%)", "Memoria Diff (MB)"}, 0);
+        model = new DefaultTableModel(new Object[]{"PID", "Nome", "Caminho", "CPU (%)", "Memoria (MB)"}, 0);
         table = new JTable(model);
         JScrollPane scrollPane = new JScrollPane(table);
         TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(model);
@@ -117,7 +116,7 @@ public class TaskManager extends JFrame {
                     terminateProcessByPid(pid);
                 }
             }
-            listProcesses();
+           // listProcesses();
         } else {
             String pidString = JOptionPane.showInputDialog("Enter PID to terminate:");
             terminateProcessByPid(pidString);
@@ -178,8 +177,7 @@ public class TaskManager extends JFrame {
                     process.getName(),
                     processPath != null ? processPath : "N/A",
                     String.format("%.2f", 100d * process.getProcessCpuLoadCumulative()),
-                    String.format("%.2f", process.getResidentSetSize() / (1024.0 * 1024.0)),
-                    "-", "-",  // Espaço reservado para diferença de CPU e memória
+                    String.format("%.2f", process.getResidentSetSize() / (1024.0 * 1024.0))
             });
         }
     }
@@ -187,55 +185,6 @@ public class TaskManager extends JFrame {
     private String getProcessPath(int pid) {
         OSProcess process = os.getProcess(pid);
         return process != null ? process.getPath() : null;
-    }
-
-
-    private void displayCpuMemoryUsage() {
-        // Capturar o estado inicial do processo
-        initialProcesses.clear();
-        List<OSProcess> processes = os.getProcesses();
-        for (OSProcess process : processes) {
-            initialProcesses.put(process.getProcessID(), process);
-        }
-
-        // Atraso para capturar o segundo estado do processo
-        try {
-            TimeUnit.SECONDS.sleep(2);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
-        // Captura o segundo estado do processo e calcula as diferenças
-        Map<Integer, OSProcess> secondProcesses = new HashMap<>();
-        processes = os.getProcesses();
-        for (OSProcess process : processes) {
-            secondProcesses.put(process.getProcessID(), process);
-        }
-
-        model.setRowCount(0);
-        for (OSProcess process : processes) {
-            int pid = process.getProcessID();
-            OSProcess initialProcess = initialProcesses.get(pid);
-            double initialCpuLoad = initialProcess != null ? initialProcess.getProcessCpuLoadCumulative() : 0;
-            double secondCpuLoad = process.getProcessCpuLoadCumulative();
-            double cpuDiff = 100d * (secondCpuLoad - initialCpuLoad);
-
-            long initialMemory = initialProcess != null ? initialProcess.getResidentSetSize() : 0;
-            long secondMemory = process.getResidentSetSize();
-            double memoryDiff = (secondMemory - initialMemory) / (1024.0 * 1024.0);
-
-            String processPath = getProcessPath(process.getProcessID());
-
-            model.addRow(new Object[]{
-                    pid,
-                    process.getName(),
-                    processPath != null ? processPath : "N/A",
-                    String.format("%.2f", 100d * secondCpuLoad),
-                    String.format("%.2f", secondMemory / (1024.0 * 1024.0)),
-                    String.format("%.2f", cpuDiff),
-                    String.format("%.2f", memoryDiff),
-            });
-        }
     }
 
     @SuppressWarnings("deprecation")
