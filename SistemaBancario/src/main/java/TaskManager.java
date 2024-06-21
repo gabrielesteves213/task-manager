@@ -99,16 +99,6 @@ public class TaskManager extends JFrame {
                 }
             }
         });
-        
-     // Listener de clique na tabela para encerrar o processo
-        table.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override
-            public void mouseClicked(java.awt.event.MouseEvent evt) {
-                int row = table.rowAtPoint(evt.getPoint());
-                int pid = (int) table.getValueAt(row, 0); // Obtém o PID da linha clicada
-                terminateProcess(pid);
-            }
-        });
     }
     
     private void terminateProcess() {
