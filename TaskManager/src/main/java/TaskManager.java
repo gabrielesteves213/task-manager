@@ -1,4 +1,6 @@
 import oshi.SystemInfo;
+import oshi.hardware.CentralProcessor;
+import oshi.hardware.HardwareAbstractionLayer;
 import oshi.software.os.OSProcess;
 import oshi.software.os.OperatingSystem;
 
@@ -17,11 +19,8 @@ import java.awt.*;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public class TaskManager extends JFrame {
@@ -131,7 +130,7 @@ public class TaskManager extends JFrame {
                 int exitCode = terminateProcess(pid);
                 consumeExitCode.accept(exitCode);
             } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(null, "Invalid PID", "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(null, "PID Invalido", "Erro", JOptionPane.ERROR_MESSAGE);
             }
         }
     }
@@ -139,13 +138,14 @@ public class TaskManager extends JFrame {
     private void displayCpuUsageChart() {
     	DefaultPieDataset<String> dataset = new DefaultPieDataset<>();
     	List<OSProcess> processes = os.getProcesses();
-
+    	 int numeroNucleos = getNumeroNucleos();
+    	 
         // Ordena os processos pelo uso de CPU (maior para menor)
         processes.sort((p1, p2) -> Double.compare(p2.getProcessCpuLoadCumulative(), p1.getProcessCpuLoadCumulative()));
 
         // Adiciona os processos ao dataset para o gráfico de pizza
         for (OSProcess process : processes) {
-            dataset.setValue(process.getName(), process.getProcessCpuLoadCumulative() * 100);
+            dataset.setValue(process.getName(), (process.getProcessCpuLoadCumulative() / numeroNucleos) * 100);
         }
 
         // Cria o gráfico de pizza
@@ -171,6 +171,8 @@ public class TaskManager extends JFrame {
 
     private void listProcesses() {
         model.setRowCount(0);
+        int numeroNucleos = getNumeroNucleos();
+        
         List<OSProcess> processes = os.getProcesses();
         for (OSProcess process : processes) {
         	String processPath = getProcessPath(process.getProcessID());
@@ -178,11 +180,42 @@ public class TaskManager extends JFrame {
                     process.getProcessID(),
                     process.getName(),
                     processPath != null ? processPath : "N/A",
-                    String.format("%.2f", 100d * process.getProcessCpuLoadCumulative()),
+                    String.format("%.2f", 100d *  (process.getProcessCpuLoadCumulative() / numeroNucleos)),
                     String.format("%.2f", process.getResidentSetSize() / (1024.0 * 1024.0))
             });
         }
     }
+
+	private int getNumeroNucleos() {
+//		// Obtém a instância do Runtime
+//        Runtime runtime = Runtime.getRuntime();
+//        // Obtém o número de processadores/núcleos disponíveis
+//        int numeroDeNucleos = runtime.availableProcessors();
+//        return numeroDeNucleos;
+//        
+//        
+////        // Obtém o bean do sistema operacional
+////        OperatingSystemMXBean osBean = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
+////        
+////        // Obtém o número de processadores/núcleos disponíveis
+////        int numeroDeNucleos = osBean.getAvailableProcessors();
+////        return numeroDeNucleos;
+		
+		
+        // Cria uma instância de SystemInfo
+        SystemInfo systemInfo = new SystemInfo();
+        
+        // Obtém a camada de abstração de hardware
+        HardwareAbstractionLayer hardware = systemInfo.getHardware();
+        
+        // Obtém o processador central
+        CentralProcessor processor = hardware.getProcessor();
+        
+        // Obtém o número de núcleos físicos
+        int numeroDeNucleosFisicos = processor.getPhysicalProcessorCount();
+        return numeroDeNucleosFisicos;
+		
+	}
 
     private String getProcessPath(int pid) {
         OSProcess process = os.getProcess(pid);
@@ -211,7 +244,7 @@ public class TaskManager extends JFrame {
                 while ((line = reader.readLine()) != null) {
                     errorMsg.append(line).append("\n");
                 }
-                JOptionPane.showMessageDialog(null, "Failed to terminate process: " + errorMsg.toString(), "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(null, "Falha ao finalizar processo: " + errorMsg.toString(), "Error", JOptionPane.ERROR_MESSAGE);
             }
             return exitCode;
         } catch (Exception ex) {
