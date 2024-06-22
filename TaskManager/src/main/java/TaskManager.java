@@ -1,9 +1,3 @@
-import oshi.SystemInfo;
-import oshi.hardware.CentralProcessor;
-import oshi.hardware.HardwareAbstractionLayer;
-import oshi.software.os.OSProcess;
-import oshi.software.os.OperatingSystem;
-
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -17,16 +11,16 @@ import org.jfree.data.general.DefaultPieDataset;
 
 import java.awt.*;
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class TaskManager extends JFrame {
-
-    private static final SystemInfo systemInfo = new SystemInfo();
-    private static final OperatingSystem os = systemInfo.getOperatingSystem();
 
     private JLabel filtroLabel;
     private JTextField filtroTextField;
@@ -100,10 +94,18 @@ public class TaskManager extends JFrame {
 
     private void terminateProcessListener() {
         var selectedRow = table.getSelectedRows();
+        var terminates = terminateProcessListener(selectedRow);
         
-        var terminates = new ArrayList<Integer>();
-        
-        if (Objects.nonNull(selectedRow) && selectedRow.length > 0) {
+        if (terminates.contains(0)) {
+            JOptionPane.showMessageDialog(null, "Process terminated successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
+            listProcesses(); // Atualiza a lista de processos após a terminação
+        }
+	}
+
+	private List<Integer> terminateProcessListener(int[] selectedRow) {
+		var terminates = new ArrayList<Integer>();
+		
+		if (Objects.nonNull(selectedRow) && selectedRow.length > 0) {
             for (var row : selectedRow) {
                 if (row != -1) {
                     var modelRow = table.convertRowIndexToModel(row);
@@ -115,12 +117,8 @@ public class TaskManager extends JFrame {
             String pidString = JOptionPane.showInputDialog("Enter PID to terminate:");
             terminateProcessByPid(pidString, terminates::add);
         }
-        
-        if (terminates.contains(0)) {
-            JOptionPane.showMessageDialog(null, "Process terminated successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
-        }
-        
-        listProcesses(); // Atualiza a lista de processos após a terminação
+		
+		return terminates;
 	}
 
     private void terminateProcessByPid(String pidString, Consumer<Integer> consumeExitCode) {
@@ -137,15 +135,15 @@ public class TaskManager extends JFrame {
 
     private void displayCpuUsageChart() {
     	DefaultPieDataset<String> dataset = new DefaultPieDataset<>();
-    	List<OSProcess> processes = os.getProcesses();
+    	List<ProcessInfo> processes = getProcesses();
     	 int numeroNucleos = getNumeroNucleos();
     	 
         // Ordena os processos pelo uso de CPU (maior para menor)
-        processes.sort((p1, p2) -> Double.compare(p2.getProcessCpuLoadCumulative(), p1.getProcessCpuLoadCumulative()));
+        processes.sort((p1, p2) -> Double.compare(p2.getCpuUsage(), p1.getCpuUsage()));
 
         // Adiciona os processos ao dataset para o gráfico de pizza
-        for (OSProcess process : processes) {
-            dataset.setValue(process.getName(), (process.getProcessCpuLoadCumulative() / numeroNucleos) * 100);
+        for (ProcessInfo process : processes) {
+            dataset.setValue(process.getName(), (process.getCpuUsage() / numeroNucleos) * 100);
         }
 
         // Cria o gráfico de pizza
@@ -173,15 +171,14 @@ public class TaskManager extends JFrame {
         model.setRowCount(0);
         int numeroNucleos = getNumeroNucleos();
         
-        List<OSProcess> processes = os.getProcesses();
-        for (OSProcess process : processes) {
-        	String processPath = getProcessPath(process.getProcessID());
+        List<ProcessInfo> processes = getProcesses();
+        for (ProcessInfo process : processes) {
             model.addRow(new Object[]{
-                    process.getProcessID(),
+                    process.getProcessId(),
                     process.getName(),
-                    processPath != null ? processPath : "N/A",
-                    String.format("%.2f", 100d *  (process.getProcessCpuLoadCumulative() / numeroNucleos)),
-                    String.format("%.2f", process.getResidentSetSize() / (1024.0 * 1024.0))
+                    process.getPath() != null ? process.getPath() : "N/A",
+                    String.format("%.2f", 100d *  (process.getCpuUsage() / numeroNucleos)),
+                    String.format("%.2f", process.getResidentSetSize() / (1024d * 1024d))
             });
         }
     }
@@ -202,25 +199,22 @@ public class TaskManager extends JFrame {
 ////        return numeroDeNucleos;
 		
 		
-        // Cria uma instância de SystemInfo
-        SystemInfo systemInfo = new SystemInfo();
+//        // Cria uma instância de SystemInfo
+//        SystemInfo systemInfo = new SystemInfo();
+//        
+//        // Obtém a camada de abstração de hardware
+//        HardwareAbstractionLayer hardware = systemInfo.getHardware();
+//        
+//        // Obtém o processador central
+//        CentralProcessor processor = hardware.getProcessor();
+//        
+//        // Obtém o número de núcleos físicos
+//        int numeroDeNucleosFisicos = processor.getPhysicalProcessorCount();
+//        return numeroDeNucleosFisicos;
         
-        // Obtém a camada de abstração de hardware
-        HardwareAbstractionLayer hardware = systemInfo.getHardware();
-        
-        // Obtém o processador central
-        CentralProcessor processor = hardware.getProcessor();
-        
-        // Obtém o número de núcleos físicos
-        int numeroDeNucleosFisicos = processor.getPhysicalProcessorCount();
-        return numeroDeNucleosFisicos;
+        return 1;
 		
 	}
-
-    private String getProcessPath(int pid) {
-        OSProcess process = os.getProcess(pid);
-        return process != null ? process.getPath() : null;
-    }
 
     @SuppressWarnings("deprecation")
 	private int terminateProcess(int pid) {
@@ -253,5 +247,94 @@ public class TaskManager extends JFrame {
             return 1; 	
         }
     }
+    
+    public static List<ProcessInfo> getProcesses() {
+        List<ProcessInfo> processList = new ArrayList<>();
 
+        try {
+            // Comando PowerShell para listar processos com detalhes
+            String command = "powershell.exe Get-Process | Select-Object Id, Name, Path, @{Name='User';Expression={(Get-Process -Id $_.Id).StartInfo.UserName}},"
+            		+ "@{Name='CPU';Expression={(Get-Process -Id $_.Id).CPU}}, Threads, VirtualMemorySize, WorkingSet";
+
+            // Executar o comando PowerShell
+            Process powerShellProcess = Runtime.getRuntime().exec(command);
+
+            // Capturar a saída do comando
+            BufferedReader reader = new BufferedReader(new InputStreamReader(powerShellProcess.getInputStream()));
+            String line;
+
+            ProcessInfo process = null;
+            
+            // Expressão regular para capturar chave e valor
+            Pattern pattern = Pattern.compile("^\\s*(?<key>[^:]+)\\s*:\\s*(?<value>.*)$");
+
+            // Ler cada linha de saída do PowerShell
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+
+                if (line.isEmpty()) {
+                    continue; // Ignorar linhas vazias
+                }
+
+                Matcher matcher = pattern.matcher(line);
+                if (!matcher.matches()) {
+                	continue;
+                }
+                
+                String key = matcher.group("key").trim();
+                String value = matcher.group("value").trim();
+                
+                switch (key) {
+                    case "Id":
+                        // Se trocou de processo, adiciona na lista
+                        if (process != null) {
+                            processList.add(process);
+                        }
+                        int pid = Integer.parseInt(value);
+                        process = new ProcessInfo(pid);
+                        break;
+                    case "Name":
+                    	process.setName(value);
+                        break;
+                    case "Path":
+                    	process.setPath(value);
+                        break;
+                    case "User":
+                    	process.setUser(value);
+                        break;
+                        
+                    case "CPU":
+                    	if (!value.isBlank()) {
+                    		Double cpuUsage = Double.parseDouble(value.trim().replace(',', '.'));
+                        	process.setCpuUsage(cpuUsage);
+                    	}
+                    	break;
+                    case "Threads":
+                    // TODO	process.setThreadCount(Integer.parseInt(value));
+                        break;
+                    case "VirtualMemorySize":
+                    	process.setVirtualSize(Long.parseLong(value));
+                        break;
+                    case "WorkingSet":
+                    	process.setResidentSetSize(Long.parseLong(value));
+                        break;
+                    default:
+                        break;
+                }
+            }
+            
+            if (processList != null) {
+            	processList.add(process);
+            }
+
+            // Aguardar o término do processo PowerShell
+            powerShellProcess.waitFor();
+
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        return processList;
+    }
+    
 }
