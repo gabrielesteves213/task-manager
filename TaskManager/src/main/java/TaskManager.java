@@ -49,13 +49,22 @@ public class TaskManager extends JFrame {
         add(scrollPane, BorderLayout.CENTER);
 
         JPanel controlPanel = new JPanel();
+        
         JButton listButton = new JButton("Atualizar");
-        JButton terminateButton = new JButton("Encerrar Processo");
+        listButton.setBackground(Color.GREEN);
+        listButton.setForeground(Color.WHITE);
+        
         JButton cpuChartButton = new JButton("Exibir gráfico de uso da CPU");
-
+        cpuChartButton.setBackground(Color.GREEN);
+        cpuChartButton.setForeground(Color.WHITE);
+        
+        JButton terminateButton = new JButton("Encerrar Processo");
+        terminateButton.setBackground(Color.RED);
+        terminateButton.setForeground(Color.WHITE);
+        
         controlPanel.add(listButton);
-        controlPanel.add(terminateButton);
         controlPanel.add(cpuChartButton);
+        controlPanel.add(terminateButton);
         add(controlPanel, BorderLayout.SOUTH);
 
         //Lista os processos ao iniciar
@@ -136,14 +145,13 @@ public class TaskManager extends JFrame {
     private void displayCpuUsageChart() {
     	DefaultPieDataset<String> dataset = new DefaultPieDataset<>();
     	List<ProcessInfo> processes = getProcesses();
-    	 int numeroNucleos = getNumeroNucleos();
     	 
         // Ordena os processos pelo uso de CPU (maior para menor)
         processes.sort((p1, p2) -> Double.compare(p2.getCpuUsage(), p1.getCpuUsage()));
 
         // Adiciona os processos ao dataset para o gráfico de pizza
         for (ProcessInfo process : processes) {
-            dataset.setValue(process.getName(), (process.getCpuUsage() / numeroNucleos) * 100);
+            dataset.setValue(process.getName(), process.getCpuUsage());
         }
 
         // Cria o gráfico de pizza
@@ -169,7 +177,6 @@ public class TaskManager extends JFrame {
 
     private void listProcesses() {
         model.setRowCount(0);
-        int numeroNucleos = getNumeroNucleos();
         
         List<ProcessInfo> processes = getProcesses();
         for (ProcessInfo process : processes) {
@@ -177,44 +184,11 @@ public class TaskManager extends JFrame {
                     process.getProcessId(),
                     process.getName(),
                     process.getPath() != null ? process.getPath() : "N/A",
-                    String.format("%.2f", 100d *  (process.getCpuUsage() / numeroNucleos)),
+                    String.format("%.2f", process.getCpuUsage()),
                     String.format("%.2f", process.getResidentSetSize() / (1024d * 1024d))
             });
         }
     }
-
-	private int getNumeroNucleos() {
-//		// Obtém a instância do Runtime
-//        Runtime runtime = Runtime.getRuntime();
-//        // Obtém o número de processadores/núcleos disponíveis
-//        int numeroDeNucleos = runtime.availableProcessors();
-//        return numeroDeNucleos;
-//        
-//        
-////        // Obtém o bean do sistema operacional
-////        OperatingSystemMXBean osBean = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
-////        
-////        // Obtém o número de processadores/núcleos disponíveis
-////        int numeroDeNucleos = osBean.getAvailableProcessors();
-////        return numeroDeNucleos;
-		
-		
-//        // Cria uma instância de SystemInfo
-//        SystemInfo systemInfo = new SystemInfo();
-//        
-//        // Obtém a camada de abstração de hardware
-//        HardwareAbstractionLayer hardware = systemInfo.getHardware();
-//        
-//        // Obtém o processador central
-//        CentralProcessor processor = hardware.getProcessor();
-//        
-//        // Obtém o número de núcleos físicos
-//        int numeroDeNucleosFisicos = processor.getPhysicalProcessorCount();
-//        return numeroDeNucleosFisicos;
-        
-        return 1;
-		
-	}
 
     @SuppressWarnings("deprecation")
 	private int terminateProcess(int pid) {
@@ -254,7 +228,7 @@ public class TaskManager extends JFrame {
         try {
             // Comando PowerShell para listar processos com detalhes
             String command = "powershell.exe Get-Process | Select-Object Id, Name, Path, @{Name='User';Expression={(Get-Process -Id $_.Id).StartInfo.UserName}},"
-            		+ "@{Name='CPU';Expression={(Get-Process -Id $_.Id).CPU}}, Threads, VirtualMemorySize, WorkingSet";
+            		+ "@{Name='CPU';Expression={(Get-Process -Id $_.Id).CPU}}, VirtualMemorySize, WorkingSet";
 
             // Executar o comando PowerShell
             Process powerShellProcess = Runtime.getRuntime().exec(command);
@@ -268,6 +242,8 @@ public class TaskManager extends JFrame {
             // Expressão regular para capturar chave e valor
             Pattern pattern = Pattern.compile("^\\s*(?<key>[^:]+)\\s*:\\s*(?<value>.*)$");
 
+            Double totalCpu = 0.00;
+            
             // Ler cada linha de saída do PowerShell
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
@@ -306,12 +282,10 @@ public class TaskManager extends JFrame {
                     case "CPU":
                     	if (!value.isBlank()) {
                     		Double cpuUsage = Double.parseDouble(value.trim().replace(',', '.'));
-                        	process.setCpuUsage(cpuUsage);
+                    		process.setCpuUsage(cpuUsage);
+                    		totalCpu += cpuUsage;
                     	}
                     	break;
-                    case "Threads":
-                    // TODO	process.setThreadCount(Integer.parseInt(value));
-                        break;
                     case "VirtualMemorySize":
                     	process.setVirtualSize(Long.parseLong(value));
                         break;
@@ -327,6 +301,8 @@ public class TaskManager extends JFrame {
             	processList.add(process);
             }
 
+            processaPorcentagemCPU(processList, totalCpu);
+            
             // Aguardar o término do processo PowerShell
             powerShellProcess.waitFor();
 
@@ -336,5 +312,12 @@ public class TaskManager extends JFrame {
 
         return processList;
     }
+
+	private static void processaPorcentagemCPU(List<ProcessInfo> processList, Double totalCpu) {
+		processList.forEach(p -> {
+			Double cpu = (100d * p.getCpuUsage()) / totalCpu;
+			p.setCpuUsage(cpu);
+		});
+	}
     
 }
